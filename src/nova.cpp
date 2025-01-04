@@ -4,6 +4,19 @@
 #include <fstream>
 #include <sys/stat.h>
 #include <cmath>
+#include <windows.h>
+
+std::string utf8ToAnsi(const std::string& utf8) {
+    int wlen = MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), -1, nullptr, 0);
+    std::wstring wide(wlen, L'\0');
+    MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), -1, &wide[0], wlen);
+
+    int alen = WideCharToMultiByte(CP_ACP, 0, wide.c_str(), -1, nullptr, 0, nullptr, nullptr);
+    std::string ansi(alen, '\0');
+    WideCharToMultiByte(CP_ACP, 0, wide.c_str(), -1, &ansi[0], alen, nullptr, nullptr);
+
+    return ansi;
+}
 
 int Nova::versionCheck(Nova* no) {
     time_t current_version = -1;
@@ -122,19 +135,26 @@ int Nova::download_extract(const Nova::Nova_data& nova_piece) {
         output_suffix = ".mp4";
     }
     std::string agent = " --user-agent=\"Mozilla\" ";
-    std::string wget = "wget -O " + output_folder + nova_piece.name + "_original" + output_suffix + agent + nova_piece.url;
+    std::string temp_name = output_folder + "temp_download_file" + output_suffix;
+    std::string wget = "wget -O " + temp_name + agent + nova_piece.url;
     system(wget.c_str());
+
+    std::string final_name = output_folder + nova_piece.name + "_original" + output_suffix;
+    std::cout << "Temp File Path: " << temp_name << std::endl;
+    std::cout << "Final File Path: " << final_name << std::endl;
+
+    rename(temp_name.c_str(), utf8ToAnsi(final_name).c_str());
     
     if (nova_piece.format == "Dynamic") {
         std::string filename = "../output/output_mp4_folder/" + nova_piece.name + "_original" + output_suffix;
         std::string output_name = "../output/output_mp4_folder/" + nova_piece.name + output_suffix;
-        std::ifstream extract_file(filename, std::ios::binary);
+        std::ifstream extract_file(utf8ToAnsi(filename).c_str(), std::ios::binary);
         if (!extract_file.is_open()) {
             std::cout << "Warning: Download file cannot find!" << std::endl;
             return 1;
         }
 
-        std::ofstream output_file(output_name, std::ios::binary);
+        std::ofstream output_file(utf8ToAnsi(output_name).c_str(), std::ios::binary);
         if (!output_file.is_open()) {
             std::cout << "Warning: Cannot open output file!" << std::endl;
             return 1;
@@ -149,10 +169,12 @@ int Nova::download_extract(const Nova::Nova_data& nova_piece) {
 
         extract_file.close();
         output_file.close();
-        remove(filename.c_str());
+        remove(utf8ToAnsi(filename).c_str());
         std::cout << "Download " + nova_piece.name + " to ../output/output_mp4_folder successfully." << std::endl;
     }
     else {
+        std::string png_name = output_folder + nova_piece.name + output_suffix;
+        rename(utf8ToAnsi(final_name).c_str(), utf8ToAnsi(png_name).c_str());
         std::cout << "Download " + nova_piece.name + " to ../output/output_png_folder successfully." << std::endl;
     }
     return 0;
